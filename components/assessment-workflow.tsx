@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { COUNTRIES, BUSINESSES, TRANSFERS, LEVELS, EXAMPLE_PROFILE, EXAMPLE_DESCRIPTION, makeDemoReport, profileSchema, apiStatusSchema, apiErrorSchema, reportSchema, countryNames, businessName, reportDate, type Profile, type Report } from "@/lib/assessment";
 import { exportReportPDF } from "@/lib/report-pdf";
+import { aiEndpoint, canCheckApi } from "@/lib/ai-client";
 type ImageItem={file:File;url:string;id:string};
 type Stage="profile"|"materials"|"loading"|"report";
 type MCPContext={registerTool:(tool:{name:string;title:string;description:string;inputSchema:object;annotations:object;execute:(input:unknown)=>unknown},options:{signal:AbortSignal})=>void|Promise<void>};
@@ -24,7 +25,7 @@ export default function AssessmentWorkflow({initialExample=false}:{initialExampl
  const profile=profileSchema.safeParse({country_list:countries,business_type:business,data_transfer:transfer});const validProfile=profile.success;
  const characterCount=Array.from(description.trim()).length;const validMaterials=(characterCount===0||characterCount>=10)&&characterCount<=2000&&(characterCount>=10||images.length>0);
  const liveReady=!!api?.configured&&countries.every(c=>api.reviewed_countries.includes(c));
- useEffect(()=>{const controller=new AbortController();fetch("/api/status",{signal:controller.signal,cache:"no-store"}).then(r=>r.ok?r.json():null).then(data=>{const parsed=apiStatusSchema.safeParse(data);if(parsed.success)setApi(parsed.data);}).catch(()=>{});return()=>controller.abort();},[]);
+ useEffect(()=>{if(!canCheckApi)return;const controller=new AbortController();fetch(aiEndpoint("/api/status"),{signal:controller.signal,cache:"no-store"}).then(r=>r.ok?r.json():null).then(data=>{const parsed=apiStatusSchema.safeParse(data);if(parsed.success)setApi(parsed.data);}).catch(()=>{});return()=>controller.abort();},[]);
  useEffect(()=>{imagesRef.current=images;},[images]);
  useEffect(()=>()=>{imagesRef.current.forEach(i=>URL.revokeObjectURL(i.url));requestRef.current?.abort();if(pdfRef.current)URL.revokeObjectURL(pdfRef.current);generation.current++;},[]);
  useEffect(()=>{if(stage!=="loading")return;const timer=setInterval(()=>setProgress(p=>Math.min(92,p+Math.max(1,(94-p)*.08))),550);return()=>clearInterval(timer);},[stage]);
@@ -52,7 +53,7 @@ export default function AssessmentWorkflow({initialExample=false}:{initialExampl
  busyRef.current=true;const run=++generation.current;const controller=new AbortController();requestRef.current=controller;setError("");setProgress(8);changeStage("loading");
  try{
  let result:Report;
- if(liveReady){const form=new FormData();form.set("profile",JSON.stringify(profile.data));form.set("description",description.trim());images.forEach(i=>form.append("images",i.file));const response=await fetch("/api/analyze",{method:"POST",body:form,signal:controller.signal});const data=await response.json();if(!response.ok){const failure=apiErrorSchema.safeParse(data);throw new Error(failure.success?failure.data.error.message:"分析服务暂时不可用，请重试。");}const parsedReport=reportSchema.safeParse(data);if(!parsedReport.success||parsedReport.data.mode!=="live")throw new Error("分析结果不完整，请重试。");result=parsedReport.data;}
+ if(liveReady){const form=new FormData();form.set("profile",JSON.stringify(profile.data));form.set("description",description.trim());images.forEach(i=>form.append("images",i.file));const response=await fetch(aiEndpoint("/api/analyze"),{method:"POST",body:form,signal:controller.signal});const data=await response.json();if(!response.ok){const failure=apiErrorSchema.safeParse(data);throw new Error(failure.success?failure.data.error.message:"分析服务暂时不可用，请重试。");}const parsedReport=reportSchema.safeParse(data);if(!parsedReport.success||parsedReport.data.mode!=="live")throw new Error("分析结果不完整，请重试。");result=parsedReport.data;}
  else {await new Promise(resolve=>setTimeout(resolve,1400));result=makeDemoReport(profile.data);}
  if(run!==generation.current)return;setReport(result);setProgress(100);setDownloaded(false);setPdfLink(null);if(pdfRef.current)URL.revokeObjectURL(pdfRef.current);pdfRef.current=null;setStage("report");window.scrollTo({top:0,behavior:"smooth"});
  }catch(e){if(controller.signal.aborted||run!==generation.current)return;setError(e instanceof Error?e.message:"分析失败，请稍后重试。");setStage("materials");}finally{if(run===generation.current)busyRef.current=false;}

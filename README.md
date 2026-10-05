@@ -14,7 +14,7 @@ npm run build
 
 ## AI 接入
 
-前端只访问同源接口，不持有密钥。后端使用兼容 Chat Completions 的 HTTP 接口，支持图文输入及结构化输出，参考 [官方 API 规范](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)。
+前端默认访问同源接口，GitHub Pages 版可配置独立后端地址，浏览器不持有密钥。后端使用兼容 Chat Completions 的 HTTP 接口，支持图文输入及结构化输出，参考 [官方 API 规范](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)。
 
 复制 `.env.example` 到本地 `.env`，设置以下服务端变量；部署时用托管环境的 secret 管理，禁止设置 NEXT_PUBLIC 前缀，也不要提交密钥：
 
@@ -44,3 +44,12 @@ PDF 由浏览器本地生成，带页码与免责声明；示例标识保留。�
 ## 自动化辅助
 
 支持的浏览器中注册 `get_assessment_state`（只读）与 `stage_assessment_profile`（仅填写画像、不调用 AI）两个 WebMCP 工具。没有支持该能力的浏览器时不影响正常流程。
+## GitHub Pages 公开演示
+
+`npm run build:pages` 将同一套网页构建到 `docs/`。GitHub Pages 使用 `main` 分支的 `/docs` 目录，资源采用相对路径，支持项目子路径。提交 `docs/` 与源码后即可更新公开演示。开发预览：`npm run dev:pages`。
+
+此版本是静态演示：不调用 AI、不上传业务材料到服务器，图片仅在浏览器中预览，PDF 也在浏览器生成。GitHub Pages 不运行 `app/api` 中的服务端接口。
+
+后续独立部署 AI 后端时，在构建环境配置公开的 `VITE_AI_API_BASE_URL`（仅服务地址，无密钥），重新构建。前端继续使用 `GET /api/status` 和 `POST /api/analyze` 的现有数据协议；后端需要允许 Pages 站点来源的 CORS 请求，并保留来源校验、上传大小限制与费用控制。AI 供应商密钥始终只放在后端。未启用服务或所选国家法规尚未审核时，页面仍明确显示示例体验。
+
+公开访问权限不代表已验证中国大陆网络连通性；国内实际体验需通过不同地区和运营商实测。
