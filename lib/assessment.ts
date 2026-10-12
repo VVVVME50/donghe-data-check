@@ -1,9 +1,17 @@
 import { z } from "zod";
-export const COUNTRIES = [{code:"SG",name:"新加坡",en:"Singapore",flag:"🇸🇬"},{code:"MY",name:"马来西亚",en:"Malaysia",flag:"🇲🇾"},{code:"TH",name:"泰国",en:"Thailand",flag:"🇹🇭"},{code:"ID",name:"印度尼西亚",en:"Indonesia",flag:"🇮🇩"}] as const;
+export const COUNTRY_CODES = ["SG","MY","ID","TH","VN","PH","BN","KH","LA","MM"] as const;
+export const COUNTRIES = [
+ {code:"SG",name:"新加坡",en:"Singapore",flag:"🇸🇬"}, {code:"MY",name:"马来西亚",en:"Malaysia",flag:"🇲🇾"},
+ {code:"ID",name:"印度尼西亚",en:"Indonesia",flag:"🇮🇩"}, {code:"TH",name:"泰国",en:"Thailand",flag:"🇹🇭"},
+ {code:"VN",name:"越南",en:"Vietnam",flag:"🇻🇳"}, {code:"PH",name:"菲律宾",en:"Philippines",flag:"🇵🇭"},
+ {code:"BN",name:"文莱",en:"Brunei",flag:"🇧🇳"}, {code:"KH",name:"柬埔寨",en:"Cambodia",flag:"🇰🇭"},
+ {code:"LA",name:"老挝",en:"Laos",flag:"🇱🇦"}, {code:"MM",name:"缅甸",en:"Myanmar",flag:"🇲🇲"}
+] as const;
+export type CountryCode=typeof COUNTRY_CODES[number];
 export const BUSINESSES = [{value:"ecommerce",label:"跨境电商平台卖家",hint:"Shopee、Lazada 等平台"},{value:"independent",label:"跨境独立站",hint:"自建网站与线上商店"},{value:"livestream",label:"跨境直播",hint:"直播带货与粉丝运营"},{value:"social",label:"海外社媒 / MCN",hint:"社媒运营与达人合作"},{value:"trade",label:"传统外贸加工",hint:"B2B 订单与客户管理"},{value:"other",label:"其他业务",hint:"在材料中补充您的场景"}] as const;
 export const TRANSFERS = [{value:"all",label:"是，全部回传国内"},{value:"partial",label:"是，部分数据回传"},{value:"local",label:"否，全部在东盟本地处理"},{value:"unknown",label:"不清楚，需要进一步梳理"}] as const;
 export const DISCLAIMER="本工具仅提供数据合规风险自查参考，不构成法律意见、合规鉴证或律师意见。涉及重要决策，请咨询专业律师。";
-export const profileSchema=z.object({country_list:z.array(z.enum(["SG","MY","TH","ID"])).min(1).max(4).refine(a=>new Set(a).size===a.length,"国家不能重复"),business_type:z.enum(["ecommerce","independent","livestream","social","trade","other"]),data_transfer:z.enum(["all","partial","local","unknown"])}).strict();
+export const profileSchema=z.object({country_list:z.array(z.enum(COUNTRY_CODES)).min(1).max(10).refine(a=>new Set(a).size===a.length,"国家不能重复"),business_type:z.enum(["ecommerce","independent","livestream","social","trade","other"]),data_transfer:z.enum(["all","partial","local","unknown"])}).strict();
 export type Profile=z.infer<typeof profileSchema>;
 export const LEVELS={high:{label:"高风险",color:"#bc5548"},medium:{label:"中风险",color:"#b58a35"},low:{label:"低风险",color:"#287e70"},unknown:{label:"待核实",color:"#6d8094"}};
 export type Level=keyof typeof LEVELS;
@@ -27,7 +35,7 @@ export function countryNames(profile:Profile){return profile.country_list.map(co
 export function businessName(profile:Profile){return BUSINESSES.find(b=>b.value===profile.business_type)?.label??profile.business_type;}
 export function reportDate(date:string){return new Intl.DateTimeFormat("zh-CN",{timeZone:"Asia/Shanghai",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(date));}
 
-export const apiStatusSchema=z.object({configured:z.boolean(),provider:z.enum(["qwen","compatible"]).default("compatible"),materials_only:z.boolean().default(false),reviewed_countries:z.array(z.enum(["SG","MY","TH","ID"]))});
+export const apiStatusSchema=z.object({configured:z.boolean(),provider:z.enum(["qwen","compatible"]).default("compatible"),materials_only:z.boolean().default(false),reviewed_countries:z.array(z.enum(COUNTRY_CODES))});
 export type ApiStatus=z.infer<typeof apiStatusSchema>;
 export const apiErrorSchema=z.object({error:z.object({code:z.string(),message:z.string()})});
 const reportSourceSchema=z.object({id:z.string(),country:z.string(),name:z.string(),article:z.string(),url:z.string().url(),reviewed_at:z.string(),excerpt:z.string()});

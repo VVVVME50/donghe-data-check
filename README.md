@@ -1,6 +1,6 @@
-# 东合智检 · 一期网页 MVP
+# 东合智检 · 二期增强版
 
-面向出海东盟小微企业的数据合规风险自查网页。无注册、无收款、无历史记录数据库。包含首页、3 题画像、文字与图片上传、报告、免费 A4 PDF 导出与移动适配。
+面向出海东盟企业的数据合规工具箱。覆盖文档指定的十个市场，包含风险自查、三类文档初稿、官方处罚案例、六场景法规参考、多国比对和本浏览器报告夹。无收款，微信／短信登录与云端历史待配置。正文和报告以 18 px 为基础，适配桌面与手机。
 
 ## 开发
 
@@ -28,24 +28,25 @@ npm run build
 
 当前服务端已配置千问 `qwen3-vl-plus`，使用 `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`，`AI_JSON_MODE=object`。模型支持文字和图片，JSON Object 模式需要在提示中给出明确结构；此模型当前不支持 JSON Schema 模式。参见[阿里云结构化输出文档](https://help.aliyun.com/zh/model-studio/qwen-structured-output)。真实密钥只保存在托管服务端的 secret 中。
 
-在 `data/regulations.json` 为支持国家加入**专业人员审核后的**法规摘编。每项字段为 `id / country / name / article / url / reviewed_at / excerpt`。`country` 为 SG/MY/TH/ID，`reviewed_at` 为 YYYY-MM-DD，url 为官方 HTTPS 法规出处。当前四国数组为空，线上已明确开启材料初筛：根据真实材料梳理业务流程和信息缺口，所有事项统一为“待核实”，禁止引用未经核验的法条或给出法律风险评级。法规审核完成后才能提供带来源的法规筛查；不能把空摘编改成虚构法规。
+在 `data/regulations.json` 为支持国家加入**专业人员审核后的**法规摘编。每项字段为 `id / country / name / article / url / reviewed_at / excerpt`。`country` 为 SG/MY/ID/TH/VN/PH/BN/KH/LA/MM，`reviewed_at` 为 YYYY-MM-DD，url 为官方 HTTPS 法规出处。当前十国数组为空，线上已明确开启材料初筛：根据真实材料梳理业务流程和信息缺口，所有事项统一为“待核实”，禁止引用未经核验的法条或给出法律风险评级。法规审核完成后才能提供带来源的法规筛查；不能把空摘编改成虚构法规。
 
 接口：
 
 - `GET /api/status`：返回 `configured / provider / materials_only / reviewed_countries`，不返回端点或密钥。
 - `POST /api/analyze`：multipart/form-data。`profile` 为 JSON 字符串；`description` 为 0 或 10–2000 字；`images` 最多 3 个 JPG/PNG 文件，每个 <=5 MiB。画像和至少一种材料必填。
-- 画像字段：`country_list`（SG/MY/TH/ID 数组）、`business_type`（ecommerce/independent/livestream/social/trade/other）、`data_transfer`（all/partial/local/unknown）。
+- `POST /api/documents`：JSON，字段 `country / type / data_types / storage`。单国；三种类型 `shop / fans / processing`；两项补充说明最多各300字符。AI 仅改写告知底稿，不添加未经审校的法律结论；校验章节、占位符和不支持的法律声称。模板底稿为用户单独选择，接口错误不会伪装成 AI 结果。请求体最多16KB、读取最多15秒，和自查共享并发槽位及限流。
+- 画像字段：`country_list`（SG/MY/ID/TH/VN/PH/BN/KH/LA/MM 数组，最多十国）、`business_type`（ecommerce/independent/livestream/social/trade/other）、`data_transfer`（all/partial/local/unknown）。
 - 输出契约见 `lib/assessment.ts`。报告包含 `analysis_scope`（`demo / materials_only / regulation_screening`），由服务端补充日期、编号、免责声明和风险数量；法规 ID 映射至已审核摘编。缺乏可核验法规来源的项会降为“待核实”。
 - 错误返回 `{error:{code,message}}`；未配置或认证不可用 503、输入不合法 400、上传超时 408、过大 413、不支持 Content-Type 415、并发忙碌或超频 429、上游或结果校验失败 502、模型连接超时 504。不会将真实接口错误静默换成示例。
-- 请求体最多 16 MiB，上传阶段总期限 30 秒，模型请求期限 60 秒；每个 Worker 实例同时处理 1 次分析，按访问 IP 在实例内最多 8 次 / 10 分钟。此限制为内存中的尽力保护，不能代替跨实例限流、账号鉴权或供应商额度上限。CORS 仅允许指定网页来源，不等同于身份验证。
+- 请求体最多 16 MiB，上传阶段总期限 30 秒，模型请求期限 60 秒；每个 Worker 实例同时处理 1 次自查或文档生成，按访问 IP 在实例内最多 8 次 / 10 分钟。此限制为内存中的尽力保护，不能代替跨实例限流、账号鉴权或供应商额度上限。CORS 仅允许指定网页来源，不等同于身份验证。
 
 ## 隐私与结果边界
 
-真实分析时，材料在请求内存中处理，未写入磁盘、数据库或应用日志；本应用不能代替模型服务商承诺零留存，应在正式上线前核查供应商数据政策。浏览器仅使用当前页面内存，刷新后画像、材料、报告失效。示例模式不会把文字/图片发送到 AI，预设报告持续显示示例标识。
+真实分析时，材料在请求内存中处理，未写入磁盘、数据库或应用日志；本应用不能代替模型服务商承诺零留存，应在正式上线前核查供应商数据政策。原始材料仅在当前会话中保留，生成报告后清空；导航切换保留正在填写的会话。输出结果只有手动点击保存后才进入本浏览器 localStorage，最多20条、总大小上限；支持回看、重新导出、单条删除及确认清空。保存结果可能复述业务信息，需在保存前检查。刷新不会保留未保存的输入与输出。示例模式不会把文字/图片发送到 AI，预设报告持续显示示例标识。
 
-当前的法规资料和机构授权均未提供，网页未展示虚构合作背书或律师名录。产品用于风险自查参考，不能作为合规证明或替代律师意见。公开运营前需验证真实模型输出准确性、法规更新、成本配额与跨实例限流。
+`lib/knowledge.ts` 保存十国官方公开资料状态及三条真实处罚记录，与 `data/regulations.json` 的专业审校摘编分离。法规参考及对比中明确区分公开资料、通用业务提示和待核验内容；不把区域框架等同于当地强制法律。当前专业审校法规资料和机构授权均未提供，网页未展示虚构合作背书或律师名录。产品用于风险自查参考，不能作为合规证明或替代律师意见。公开运营前需验证真实模型输出准确性、法规更新、成本配额与跨实例限流。
 
-PDF 由浏览器本地生成，带页码与免责声明；示例标识及材料初筛边界保留。为确保中文字体及离线输出一致，采用 A4 高分辨率图像页面，文字暂不可选择检索。
+风险报告、文档及多国对比 PDF 由浏览器本地生成；多国对比按国家分组导出，保存记录保留生成时的文本快照。PDF，带页码与免责声明；示例标识及材料初筛边界保留。为确保中文字体及离线输出一致，采用 A4 高分辨率图像页面，文字暂不可选择检索。
 
 ## 自动化辅助
 

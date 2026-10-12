@@ -12,6 +12,6 @@ if (apiBase) {
 }
 
 export const canCheckApi = buildEnv?.VITE_STATIC_DEMO !== "true" || !!apiBase;
-export function aiEndpoint(path: "/api/status" | "/api/analyze") {
+export function aiEndpoint(path: "/api/status" | "/api/analyze" | "/api/documents") {
   return `${apiBase}${path}`;
 }
