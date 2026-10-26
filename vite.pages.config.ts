@@ -14,7 +14,8 @@ return {
   resolve: { alias: { "@": root } },
   define: {
     "import.meta.env.VITE_STATIC_DEMO": JSON.stringify(localProxy ? "false" : "true"),
-    "import.meta.env.VITE_AI_API_BASE_URL": JSON.stringify(localProxy ? "" : process.env.VITE_AI_API_BASE_URL || "https://donghe-data-check.vme0522.chatgpt.site"),
+    "import.meta.env.VITE_AI_API_BASE_URL": JSON.stringify(localProxy ? "" : process.env.VITE_AI_API_BASE_URL || ""),
+    "import.meta.env.VITE_INTERNAL_WORKSPACE_URL": JSON.stringify(localProxy ? "" : "https://donghe-internal.vme0522.chatgpt.site"),
   },
   server: localProxy ? { proxy: { "/api": localProxy } } : undefined,
   css: { postcss: root },

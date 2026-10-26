@@ -9,7 +9,7 @@ import { COUNTRY_CODES, COUNTRIES, BUSINESSES, TRANSFERS, LEVELS, EXAMPLE_PROFIL
 import { exportReportPDF } from "@/lib/report-pdf";
 import { CountryStatus } from "@/components/toolbox";
 import { REVIEW_LABELS } from "@/lib/rag-contract";
-import { aiEndpoint, canCheckApi } from "@/lib/ai-client";
+import { aiEndpoint, canCheckApi, apiCredentials } from "@/lib/ai-client";
 type ImageItem={file:File;url:string;id:string};
 type Stage="profile"|"materials"|"loading"|"report";
 type MCPContext={registerTool:(tool:{name:string;title:string;description:string;inputSchema:object;annotations:object;execute:(input:unknown)=>unknown},options:{signal:AbortSignal})=>void|Promise<void>};
@@ -31,7 +31,7 @@ export default function AssessmentWorkflow({initialExample=false,initialProfile,
  const liveReady=!!api?.configured&&(api.materials_only||legalReady);
  const referenceReady=!!api&&countries.some(c=>api.reference_countries.includes(c as CountryCode));
  const materialsOnly=liveReady&&!legalReady&&!referenceReady;
- useEffect(()=>{if(!canCheckApi)return;const controller=new AbortController();setApiError("");setApi(null);fetch(aiEndpoint("/api/status"),{signal:AbortSignal.any([controller.signal,AbortSignal.timeout(20000)]),cache:"no-store",credentials:"omit"}).then(r=>{if(!r.ok)throw new Error("unavailable");return r.json();}).then(data=>{const parsed=apiStatusSchema.safeParse(data);if(!parsed.success)throw new Error("invalid status");setApi(parsed.data);}).catch(()=>{if(!controller.signal.aborted)setApiError("AI 服务连接暂未成功，当前可浏览示例报告。");});return()=>controller.abort();},[statusRefresh]);
+ useEffect(()=>{if(!canCheckApi)return;const controller=new AbortController();setApiError("");setApi(null);fetch(aiEndpoint("/api/status"),{signal:AbortSignal.any([controller.signal,AbortSignal.timeout(20000)]),cache:"no-store",credentials:apiCredentials}).then(r=>{if(!r.ok)throw new Error("unavailable");return r.json();}).then(data=>{const parsed=apiStatusSchema.safeParse(data);if(!parsed.success)throw new Error("invalid status");setApi(parsed.data);}).catch(()=>{if(!controller.signal.aborted)setApiError("AI 服务连接暂未成功，当前可浏览示例报告。");});return()=>controller.abort();},[statusRefresh]);
  useEffect(()=>{imagesRef.current=images;},[images]);
  useEffect(()=>()=>{imagesRef.current.forEach(i=>URL.revokeObjectURL(i.url));requestRef.current?.abort();if(pdfRef.current)URL.revokeObjectURL(pdfRef.current);generation.current++;},[]);
  useEffect(()=>{if(stage!=="loading")return;const timer=setInterval(()=>setProgress(p=>Math.min(92,p+Math.max(1,(94-p)*.08))),550);return()=>clearInterval(timer);},[stage]);
@@ -61,7 +61,7 @@ export default function AssessmentWorkflow({initialExample=false,initialProfile,
  busyRef.current=true;const run=++generation.current;const controller=new AbortController();requestRef.current=controller;setError("");setProgress(8);changeStage("loading");
  try{
  let result:Report;
- if(liveReady){const form=new FormData();form.set("profile",JSON.stringify(profile.data));form.set("description",description.trim());images.forEach(i=>form.append("images",i.file));const response=await fetch(aiEndpoint("/api/analyze"),{method:"POST",body:form,signal:AbortSignal.any([controller.signal,AbortSignal.timeout(150000)]),credentials:"omit"});const data=await response.json();if(!response.ok){const failure=apiErrorSchema.safeParse(data);throw new Error(failure.success?failure.data.error.message:"分析服务暂时不可用，请重试。");}const parsedReport=reportSchema.safeParse(data);if(!parsedReport.success||parsedReport.data.mode!=="live")throw new Error("分析结果不完整，请重试。");result=parsedReport.data;}
+ if(liveReady){const form=new FormData();form.set("profile",JSON.stringify(profile.data));form.set("description",description.trim());images.forEach(i=>form.append("images",i.file));const response=await fetch(aiEndpoint("/api/analyze"),{method:"POST",body:form,signal:AbortSignal.any([controller.signal,AbortSignal.timeout(150000)]),credentials:apiCredentials});const data=await response.json();if(!response.ok){const failure=apiErrorSchema.safeParse(data);throw new Error(failure.success?failure.data.error.message:"分析服务暂时不可用，请重试。");}const parsedReport=reportSchema.safeParse(data);if(!parsedReport.success||parsedReport.data.mode!=="live")throw new Error("分析结果不完整，请重试。");result=parsedReport.data;}
  else {await new Promise(resolve=>setTimeout(resolve,1400));result=makeDemoReport(profile.data);}
  if(run!==generation.current)return;setReport(result);images.forEach(i=>URL.revokeObjectURL(i.url));setImages([]);setDescription("");setProgress(100);setDownloaded(false);setPdfLink(null);if(pdfRef.current)URL.revokeObjectURL(pdfRef.current);pdfRef.current=null;setStage("report");if(activeRef.current)window.scrollTo({top:0,behavior:"smooth"});
  }catch(e){if(controller.signal.aborted||run!==generation.current)return;setError(e instanceof Error?e.message:"分析失败，请稍后重试。");setStage("materials");}finally{if(run===generation.current)busyRef.current=false;}

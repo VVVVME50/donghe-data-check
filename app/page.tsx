@@ -2,13 +2,14 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, ArrowUpRight, Check, ChevronRight, FileCheck2, FileText, FolderOpen, Globe2, ScanLine, ShieldCheck, X } from "lucide-react";
 import AssessmentWorkflow from "@/components/assessment-workflow";
-import { AccessibleModal, CasesTool, CompareTool, DocumentsTool, HistoryTool } from "@/components/toolbox";
+import { AccessibleModal, CasesTool, CompareTool, DocumentsTool, HistoryTool, LawsTool } from "@/components/toolbox";
+import { canCheckApi, internalWorkspaceUrl, isInternalWorkspace } from "@/lib/ai-client";
 import RegulationLibrary from "@/components/regulation-library";
 import { COUNTRIES, DISCLAIMER, type CountryCode, type Profile } from "@/lib/assessment";
 import { clearHistory, deleteHistory, readHistory, saveHistory, type HistoryEntry } from "@/lib/history";
 type View="home"|"example"|"assessment"|"documents"|"cases"|"laws"|"compare"|"history";
 const WORK_TABS:[View,string][]=[["assessment","风险自查"],["documents","文档准备"]];
-const REFERENCE_TABS:[View,string][]=[["laws","法规库"],["cases","处罚案例"],["compare","多国比对"]];
+const REFERENCE_TABS:[View,string][]=[["laws",canCheckApi?"法规库":"法规参考"],["cases","处罚案例"],["compare","多国比对"]];
 export default function Home(){
  const [view,setView]=useState<View>("home"),[lastWork,setLastWork]=useState<View>("assessment"),[lastReference,setLastReference]=useState<View>("laws");
  const [assessmentStarted,setAssessmentStarted]=useState(false),[assessmentKey,setAssessmentKey]=useState(0),[profile,setProfile]=useState<Profile|undefined>(),[relatedCountry,setRelatedCountry]=useState<CountryCode|undefined>();
@@ -27,8 +28,9 @@ export default function Home(){
     <button className={isWork?"active":""} aria-current={isWork?"page":undefined} onClick={()=>go(lastWork)}><ScanLine size={20}/>工作台</button>
     <button className={isReference?"active":""} aria-current={isReference?"page":undefined} onClick={()=>go(lastReference)}><Globe2 size={20}/>参考资料</button>
     <button className={view==="history"?"active":""} aria-current={view==="history"?"page":undefined} onClick={()=>go("history")}><FolderOpen size={20}/>我的记录</button>
-   </nav><span className="header-purpose">出海数据合规</span>
+   </nav><span className="header-purpose">{isInternalWorkspace?"内部法规工作台":"出海数据合规"}</span>
   </div></header>
+  {!canCheckApi&&internalWorkspaceUrl&&<div className="public-experience"><div className="wrap"><p><b>公开体验</b><span>法规库检索与真实 AI 分析仅限内部授权账号使用。</span></p><a href={internalWorkspaceUrl} target="_blank" rel="noopener noreferrer">进入内部工作台<ArrowUpRight size={18}/></a></div></div>}
   {(isWork||isReference)&&<div className="context-bar"><nav className="wrap context-tabs" aria-label={isWork?"工作台功能":"参考资料功能"}><span>{isWork?"工作台":"参考资料"}</span>{(isWork?WORK_TABS:REFERENCE_TABS).map(([id,label])=><button key={id} className={view===id||(view==="example"&&id==="assessment")?"active":""} aria-current={view===id?"page":undefined} onClick={()=>go(id)}>{label}</button>)}</nav></div>}
   {view==="home"&&<main>
    <section className="hero-band"><div className="hero wrap"><div className="hero-copy"><div className="eyebrow"><span className="eyebrow-dot"/>面向出海东盟企业</div><h1>先理清业务，<br/>再看清<span>数据风险。</span></h1><p>从你的业务材料出发，结合提供的法规资料，<br className="desktop-break"/>把问题、依据和下一步放在一起。</p><div className="hero-actions"><button className="primary-button" onClick={()=>go("assessment")}>开始风险自查<ArrowRight size={22}/></button><button className="hero-secondary" onClick={()=>go("laws")}>查阅法规资料<ArrowUpRight size={20}/></button></div><div className="hero-meta"><span><Check size={18}/>按国家检索</span><span><Check size={18}/>引用可追溯</span><span><Check size={18}/>资料不足时明确提示</span></div></div>
@@ -38,7 +40,7 @@ export default function Home(){
   </main>}
   {assessmentStarted&&<div hidden={view!=="assessment"}><AssessmentWorkflow key={assessmentKey} initialProfile={profile} active={view==="assessment"} onDirtyChange={setAssessmentDirty} {...reportActions}/></div>}
   {documentsStarted&&<div hidden={view!=="documents"}><DocumentsTool initialCountry={relatedCountry} countryRequestId={documentRequest} onSave={save}/></div>}
-  {lawsStarted&&<div hidden={view!=="laws"}><RegulationLibrary active={view==="laws"}/></div>}
+  {lawsStarted&&<div hidden={view!=="laws"}>{canCheckApi?<RegulationLibrary active={view==="laws"}/>:<LawsTool/>}</div>}
   {view==="cases"&&<CasesTool key={relatedCountry||"all"} initialCountry={relatedCountry} onAssess={c=>start({country_list:[c],business_type:"ecommerce",data_transfer:"unknown"})}/>}
   {compareStarted&&<div hidden={view!=="compare"}><CompareTool onSave={save}/></div>}
   {view==="history"&&<HistoryTool entries={entries} onDelete={id=>setEntries(deleteHistory(id))} onClear={()=>{clearHistory();setEntries([]);}} onResume={start}/>}

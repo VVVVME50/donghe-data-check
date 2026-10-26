@@ -52,6 +52,11 @@ export default defineConfig(async ({ command }) => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    define: {
+      "import.meta.env.VITE_INTERNAL_MODE": JSON.stringify(process.env.SITE_INTERNAL_MODE || "false"),
+      "import.meta.env.VITE_STATIC_DEMO": JSON.stringify(process.env.SITE_PUBLIC_MODE === "true" ? "true" : "false"),
+      "import.meta.env.VITE_INTERNAL_WORKSPACE_URL": JSON.stringify(process.env.SITE_PUBLIC_MODE === "true" ? "https://donghe-internal.vme0522.chatgpt.site" : ""),
+    },
     server: {
       ...(managedLinux
         ? { host: "0.0.0.0", allowedHosts: ["terminal.local"] }

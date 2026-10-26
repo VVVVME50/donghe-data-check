@@ -2,7 +2,7 @@
 
 面向出海东盟企业的数据合规自查网页。一级导航收为 **工作台／参考资料／我的记录**：工作台放风险自查和文档准备；参考资料放法规库、处罚案例和多国比对；记录保存用户手动留存的报告。导航切换保留正在填写的会话，刷新不会保留未保存内容。正文以18px为基础，支持桌面与手机。无收款。
 
-公开前端：[GitHub Pages](https://vvvvme50.github.io/donghe-data-check/)。API由独立的 Sites 服务端运行，浏览器不持有千问密钥。公开访问权限不代表已验证中国大陆各地区及运营商的连通性。
+公开体验：[GitHub Pages](https://vvvvme50.github.io/donghe-data-check/)。法规库仅限内部使用；真实检索与AI分析放在[内部工作台](https://donghe-internal.vme0522.chatgpt.site)，通过Sites账号与访问策略控制，初始仅当前所有者可进入。公开前端不请求该私有库，也不返回库内原文；保留示例、模板和公开背景资料。浏览器不持有千问密钥。公开访问权限不代表已验证中国大陆各地区及运营商的连通性。
 
 ## 开发与检查
 
@@ -16,7 +16,7 @@ npm run build:pages
 npm run build
 ```
 
-`npm run dev:pages` 预览静态前端。仅在本地开发时，可用 `LOCAL_AI_API_PROXY=http://127.0.0.1:8787` 将 `/api` 转发到自有本地服务；生产构建不会启用该代理。`VITE_AI_API_BASE_URL` 只包含公开 HTTPS API 服务地址，禁止放密钥。
+`npm run dev:pages` 预览公开体验；该构建默认不连接AI后端，并提供内部工作台入口。仅在本地开发时，可用 `LOCAL_AI_API_PROXY=http://127.0.0.1:8787` 将 `/api` 转发到自有本地服务；生产构建不会启用该代理。`VITE_AI_API_BASE_URL` 只包含公开 HTTPS API 服务地址，禁止放密钥。
 
 ## 法规库与引用
 
@@ -51,11 +51,12 @@ node scripts/check-public-release.mjs
 
 发布顺序：
 
-1. 在公共 `web` checkout 完成源码、空stub及 `docs/` 构建；检查后同步安全源码并推GitHub `main`。Pages从 `/docs` 发布。
-2. 另用 Sites 源码工作流打开同一项目的 **私有后端checkout**，仅在该checkout复制已审查的 `rag-corpus.server.json`；构建服务端、打包并部署到原Sites项目。此checkout不得添加GitHub远程或推公共仓库。
-3. 验证实际后端法规计数、检索、跨域调用及生成结果。密钥沿用服务端secret。
+1. 公共 `web` checkout 保持原始Site身份和空stub，执行检查及 `build:pages` 后，仅将安全源码与 `docs/` 推到GitHub。
+2. 独立 `internal-workspace` checkout 使用单独的 owner-private Site身份，复制已审查的运行语料；用 `SITE_INTERNAL_MODE=true` 构建、同步到该私有源库，调用私有发布操作。此checkout不得配置或推送GitHub远程。
+3. 原公开Sites项目使用空stub及 `SITE_PUBLIC_MODE=true` 构建，只部署公开体验。其旧待发布版本曾含索引，不能公开部署；内部语料只发布到新的受控项目。
+4. 验证访问策略、实际法规计数、检索及生成。内部页面的同源请求携带登录会话；跨域请求仍不携带凭据。访问控制由Sites平台执行，CORS不能代替它。
 
-私有后端提交会包含运行语料，只同步到该Site的私有源库。后续不能把其Git历史直接拉进公共web分支；需要将应用代码变更单独迁移，保持公共stub为空及推送保护启用。GitHub前端构建中不得出现法规卡片ID或全文；后端仅按请求返回命中片段，不提供全库下载接口。
+应用代码更新要从公共checkout复制到两个服务端checkout，分别保留它们的Site身份与语料配置。私有Git历史不得合入公共分支；推送保护需始终启用。客户端构建中不得出现法规卡片ID或全文。完整ZIP和全量导入审计保留本地，不上传GitHub。
 
 ## 服务端配置与接口
 
@@ -66,7 +67,7 @@ node scripts/check-public-release.mjs
 - `AI_MODEL`：支持图文和所选JSON模式的模型。
 - `AI_PROVIDER=qwen`：千问请求关闭思考模式，限制输出长度。
 - `AI_JSON_MODE=object` 或 `schema`：对象模式仍执行服务端结构与证据校验。
-- `AI_ALLOWED_ORIGINS`：允许的完整网页来源，逗号分隔。Pages为 `https://vvvvme50.github.io`。
+- `AI_ALLOWED_ORIGINS`：允许的完整网页来源，逗号分隔。内部工作台使用自己的完整来源，不对公开Pages开放法规接口。
 - `AI_ALLOW_MATERIAL_SCREENING`：明确设为 `true` 才允许无命中依据时整理材料事实和信息缺口。
 
 托管服务沿用千问 `qwen3-vl-plus` 及兼容接口，JSON Object模式。供应商能力见[阿里云官方结构化输出文档](https://help.aliyun.com/zh/model-studio/qwen-structured-output)。不要在前端或日志中输出认证信息。
