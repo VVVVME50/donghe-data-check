@@ -3,7 +3,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
-export default defineConfig({
+export default defineConfig(({ command }) => {
+const localProxy = command === "serve" ? process.env.LOCAL_AI_API_PROXY : undefined;
+return {
   root: `${root}github-pages`,
   envDir: root,
   base: "./",
@@ -11,9 +13,11 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias: { "@": root } },
   define: {
-    "import.meta.env.VITE_STATIC_DEMO": JSON.stringify("true"),
-    "import.meta.env.VITE_AI_API_BASE_URL": JSON.stringify(process.env.VITE_AI_API_BASE_URL || "https://donghe-data-check.vme0522.chatgpt.site"),
+    "import.meta.env.VITE_STATIC_DEMO": JSON.stringify(localProxy ? "false" : "true"),
+    "import.meta.env.VITE_AI_API_BASE_URL": JSON.stringify(localProxy ? "" : process.env.VITE_AI_API_BASE_URL || "https://donghe-data-check.vme0522.chatgpt.site"),
   },
+  server: localProxy ? { proxy: { "/api": localProxy } } : undefined,
   css: { postcss: root },
   build: { outDir: `${root}docs`, emptyOutDir: true, target: "es2020" },
+};
 });

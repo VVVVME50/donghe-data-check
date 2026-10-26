@@ -1,9 +1,10 @@
+import { REVIEW_LABELS } from "./rag-contract";
 import { countryReference } from "./knowledge";
 import { LEVELS, businessName, countryNames, reportDate, type Report } from "./assessment";
 // Rasterized CJK pages use the browser's installed fonts; no remote font or library is needed.
 export async function exportReportPDF(report:Report){
  await document.fonts.ready;
- const materialsOnly=report.analysis_scope==="materials_only";
+ const materialsOnly=report.analysis_scope==="materials_only",referenceAssisted=report.analysis_scope==="reference_assisted";
  const width=1240,height=1754,margin=90,bottom=height-125;
  const pages:HTMLCanvasElement[]=[];let canvas:HTMLCanvasElement;let ctx:CanvasRenderingContext2D;let y=0;
  function page(){canvas=document.createElement("canvas");canvas.width=width;canvas.height=height;ctx=canvas.getContext("2d")!;ctx.fillStyle="#fff";ctx.fillRect(0,0,width,height);ctx.fillStyle="#142e49";ctx.fillRect(0,0,width,17);ctx.font='600 23px Arial,"PingFang SC","Microsoft YaHei",sans-serif';ctx.fillText("东合智检  /  数据合规风险自查",margin,75);ctx.fillStyle="#7b8da0";ctx.font='19px Arial,"PingFang SC","Microsoft YaHei",sans-serif';ctx.textAlign="right";ctx.fillText(report.mode==="demo"?"示例报告 · 不构成实际风险判断":materialsOnly?"AI 材料初筛 · 法规待核验":"AI 自查参考",width-margin,75);ctx.textAlign="left";ctx.strokeStyle="#dfe7ee";ctx.beginPath();ctx.moveTo(margin,103);ctx.lineTo(width-margin,103);ctx.stroke();y=148;pages.push(canvas);}
@@ -15,11 +16,12 @@ export async function exportReportPDF(report:Report){
  text(`覆盖国家：${countryNames(report.profile)}`);text(`立法状态：${report.profile.country_list.map(c=>countryReference(c).statusText).join("、")}`,24);text("公开资料整理；专业复核待完成。区域框架不能替代当地法律。",24);text(`业务类型：${businessName(report.profile)}`);text(`生成时间：${reportDate(report.created_at)}（北京时间）`);text(`报告编号：${report.report_id}`,21,"#718599",false,35);
  section("风险等级汇总");const o=report.risk_overview;text(`整体关注等级：${LEVELS[o.overall_level].label}${report.mode==="demo"?"（示例）":""}`,28,"#142e49",true);text(`高风险 ${o.high_count} 项    中风险 ${o.medium_count} 项    低风险 ${o.low_count} 项    待核实 ${o.unknown_count} 项`,24);
  if(report.mode==="demo")text("本报告使用预设演示场景，仅展示报告结构。报告中的风险、依据及建议并非对您提交材料的实际分析，法规来源尚未核验。",28,"#8f6337",false,35);
+ if(referenceAssisted)text("本报告结合提供的法规资料检索并校验引用。命中内容为来源版本，现行效力及适用条件尚待专业复核；检索不足的国家不作法律判断。",28,"#8f6337",false,35);
  if(materialsOnly)text("本报告由 AI 根据您提交的材料整理业务流程和信息缺口。所选国家的法规依据尚未核验，事项统一标为待核实，不能据此判断法律风险等级或是否合规。",28,"#8f6337",false,35);
  section("内容目录");text("01  风险等级汇总\n02  风险事项与整改建议\n03  待补充信息\n04  后续处置方向",25);
  text(report.disclaimer,21,"#718599");
  page();section(materialsOnly?"待核实事项与流程建议":"风险事项与整改建议");
- report.risk_list.forEach((risk,index)=>{if(y+170>bottom)page();text(`${String(index+1).padStart(2,"0")}  ${risk.title}`,29,"#142e49",true,12);text(`${LEVELS[risk.level].label}${report.mode==="demo"?" · 示例":""}`,26,LEVELS[risk.level].color,true);text(risk.description);text(`材料依据：${risk.evidence}`,26,"#60758a");const sources=risk.sources.map(s=>`${s.name} ${s.article}；审核日期 ${s.reviewed_at}；${s.url}`).join("\n");text(`法规来源：${sources||"尚未提供经审核的法规出处，需进一步核实。"}`,26,"#60758a");text(`可能影响：${risk.consequence}`,26,"#60758a");text(`整改方向：${risk.suggestion}`,28,"#096c61",false,34);});
+ report.risk_list.forEach((risk,index)=>{if(y+170>bottom)page();text(`${String(index+1).padStart(2,"0")}  ${risk.title}`,29,"#142e49",true,12);text(`${LEVELS[risk.level].label}${report.mode==="demo"?" · 示例":""}`,26,LEVELS[risk.level].color,true);text(risk.description);text(`材料依据：${risk.evidence}`,26,"#60758a");const sources=risk.sources.map(s=>`${s.name} ${s.article}\n${s.cited_quote?"引用原文："+s.cited_quote+"\n":""}资料状态：${s.review_status?REVIEW_LABELS[s.review_status]:"待核验"}；版本：${s.version||"未标明"}\n${s.source_file||""} ${s.pages||""}${s.reviewed_at?"；专业复核 "+s.reviewed_at:""}${s.url?"\n来源入口："+s.url:""}`).join("\n");text(`法规来源：${sources||"尚未提供经审核的法规出处，需进一步核实。"}`,26,"#60758a");text(`可能影响：${risk.consequence}`,26,"#60758a");text(`整改方向：${risk.suggestion}`,28,"#096c61",false,34);});
  section("待补充信息");if(report.information_gaps.length)report.information_gaps.forEach((g,i)=>text(`${i+1}. ${g}`,24));else text("未列出额外信息缺口，仍建议由专业人员复核。");section("后续处置方向");text(report.disposal_guide);section("使用边界");text(report.disclaimer,26,"#60758a");
  for(let i=0;i<pages.length;i++){const c=pages[i].getContext("2d")!;c.strokeStyle="#dfe7ee";c.beginPath();c.moveTo(margin,height-94);c.lineTo(width-margin,height-94);c.stroke();c.fillStyle="#7b8da0";c.font='17px Arial,"PingFang SC","Microsoft YaHei",sans-serif';c.fillText("仅作企业自查参考，不构成法律意见、合规鉴证或律师意见。",margin,height-59);c.textAlign="right";c.fillText(`${i+1} / ${pages.length}`,width-margin,height-59);}
  const encoder=new TextEncoder();const encoded=(s:string)=>encoder.encode(s);const parts:Uint8Array[]=[];const offsets:number[]=[0];let size=0;const append=(b:Uint8Array)=>{parts.push(b);size+=b.length;};const object=(id:number,body:Uint8Array[])=>{offsets[id]=size;append(encoded(`${id} 0 obj\n`));body.forEach(append);append(encoded("\nendobj\n"));};

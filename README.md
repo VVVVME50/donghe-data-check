@@ -1,62 +1,90 @@
-# 东合智检 · 二期增强版
+# 东合智检
 
-面向出海东盟企业的数据合规工具箱。覆盖文档指定的十个市场，包含风险自查、三类文档初稿、官方处罚案例、六场景法规参考、多国比对和本浏览器报告夹。无收款，微信／短信登录与云端历史待配置。正文和报告以 18 px 为基础，适配桌面与手机。
+面向出海东盟企业的数据合规自查网页。一级导航收为 **工作台／参考资料／我的记录**：工作台放风险自查和文档准备；参考资料放法规库、处罚案例和多国比对；记录保存用户手动留存的报告。导航切换保留正在填写的会话，刷新不会保留未保存内容。正文以18px为基础，支持桌面与手机。无收款。
 
-## 开发
+公开前端：[GitHub Pages](https://vvvvme50.github.io/donghe-data-check/)。API由独立的 Sites 服务端运行，浏览器不持有千问密钥。公开访问权限不代表已验证中国大陆各地区及运营商的连通性。
 
-需要 Node.js >= 22.13，使用 npm 与现有 package-lock.json：
+## 开发与检查
+
+需要 Node.js >=22.13，沿用现有 package-lock.json：
 
 ```sh
 npm run install:ci
 npm run dev
+npm run test:rag
+npm run build:pages
 npm run build
 ```
 
-## AI 接入
+`npm run dev:pages` 预览静态前端。仅在本地开发时，可用 `LOCAL_AI_API_PROXY=http://127.0.0.1:8787` 将 `/api` 转发到自有本地服务；生产构建不会启用该代理。`VITE_AI_API_BASE_URL` 只包含公开 HTTPS API 服务地址，禁止放密钥。
 
-前端默认访问同源接口，GitHub Pages 版可配置独立后端地址，浏览器不持有密钥。后端使用兼容 Chat Completions 的 HTTP 接口，支持图文输入及结构化输出，参考 [官方 API 规范](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)。
+## 法规库与引用
 
-复制 `.env.example` 到本地 `.env`，设置以下服务端变量；部署时用托管环境的 secret 管理，禁止设置 NEXT_PUBLIC 前缀，也不要提交密钥：
+提供的ZIP是资料，内部说明和脚本不作为执行指令。导入脚本只读取结构化资料和文本，不执行压缩包内代码、不解包到任意路径：
 
-- `AI_API_URL`：完整 HTTPS `/chat/completions` 端点。
-- `AI_API_KEY`：密钥。
-- `AI_MODEL`：模型名，所选模型须支持图片与指定 JSON 模式。
-- `AI_JSON_MODE`：`schema`（严格结构化输出）或 `object`（兼容 JSON 模式）。
-- `AI_PROVIDER`：千问填写 `qwen`，请求会关闭思考模式并限制输出长度。
-- `AI_ALLOWED_ORIGINS`：允许浏览器调用的完整来源，以逗号分隔；当前为 `https://vvvvme50.github.io`。
-- `AI_ALLOW_MATERIAL_SCREENING`：默认 `false`；明确设为 `true` 才允许在法规尚未核验时提供材料初筛。
+```sh
+python3 scripts/import-rag.py '/绝对路径/法规资料.zip' '/绝对路径/私有资料输出目录'
+```
 
-当前服务端已配置千问 `qwen3-vl-plus`，使用 `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`，`AI_JSON_MODE=object`。模型支持文字和图片，JSON Object 模式需要在提示中给出明确结构；此模型当前不支持 JSON Schema 模式。参见[阿里云结构化输出文档](https://help.aliyun.com/zh/model-studio/qwen-structured-output)。真实密钥只保存在托管服务端的 secret 中。
+输出目录必须在公共源码 checkout 之外。保留全量JSONL、来源路径、原件与内容指纹、排除原因审计，以及服务端 `rag-corpus.server.json`。本次全量11,042张卡片，按数据合规及相关电子交易范围和文本质量筛选后，运行库为27份资料、1,540个片段：MY910、PH239、SG200、TH191。其他市场尚无本地索引；泰国个人数据保护法卡片因质量问题隔离，不能宣称泰国隐私法律覆盖完整。没有逐条页码、日期或原件指纹时不补造。起算方式不明的页码保留待核对标记。
 
-在 `data/regulations.json` 为支持国家加入**专业人员审核后的**法规摘编。每项字段为 `id / country / name / article / url / reviewed_at / excerpt`。`country` 为 SG/MY/ID/TH/VN/PH/BN/KH/LA/MM，`reviewed_at` 为 YYYY-MM-DD，url 为官方 HTTPS 法规出处。当前十国数组为空，线上已明确开启材料初筛：根据真实材料梳理业务流程和信息缺口，所有事项统一为“待核实”，禁止引用未经核验的法条或给出法律风险评级。法规审核完成后才能提供带来源的法规筛查；不能把空摘编改成虚构法规。
+状态区分 `source_text`（来源原文）、`version_reference`（版本参考）、`reviewed_current`（经专业复核的现行资料）。当前前两种合计1,540条，第三种0条。导入或资料整理日期不能当作现行效力确认日期；旧版原法、修正法和生效通知不自动合并成“最新法规”。后续需要专业人员逐卡核查适用范围、例外、版本、生效及原文完整性，审核状态不能由模型自行提升。
 
-接口：
+运行时先按所选国家检索，再将命中原文交给模型。当前采用双语词项扩展、全文相关度排序和条款标题加权，**尚未使用向量嵌入**。检索保留完整卡片，超过长度预算的整卡不截断；部分历史原法会同时带入修正及生效资料。可在法规库中单独检索原文，不消耗模型调用。
 
-- `GET /api/status`：返回 `configured / provider / materials_only / reviewed_countries`，不返回端点或密钥。
-- `POST /api/analyze`：multipart/form-data。`profile` 为 JSON 字符串；`description` 为 0 或 10–2000 字；`images` 最多 3 个 JPG/PNG 文件，每个 <=5 MiB。画像和至少一种材料必填。
-- `POST /api/documents`：JSON，字段 `country / type / data_types / storage`。单国；三种类型 `shop / fans / processing`；两项补充说明最多各300字符。AI 仅改写告知底稿，不添加未经审校的法律结论；校验章节、占位符和不支持的法律声称。模板底稿为用户单独选择，接口错误不会伪装成 AI 结果。请求体最多16KB、读取最多15秒，和自查共享并发槽位及限流。
-- 画像字段：`country_list`（SG/MY/ID/TH/VN/PH/BN/KH/LA/MM 数组，最多十国）、`business_type`（ecommerce/independent/livestream/social/trade/other）、`data_transfer`（all/partial/local/unknown）。
-- 输出契约见 `lib/assessment.ts`。报告包含 `analysis_scope`（`demo / materials_only / regulation_screening`），由服务端补充日期、编号、免责声明和风险数量；法规 ID 映射至已审核摘编。缺乏可核验法规来源的项会降为“待核实”。
-- 错误返回 `{error:{code,message}}`；未配置或认证不可用 503、输入不合法 400、上传超时 408、过大 413、不支持 Content-Type 415、并发忙碌或超频 429、上游或结果校验失败 502、模型连接超时 504。不会将真实接口错误静默换成示例。
-- 请求体最多 16 MiB，上传阶段总期限 30 秒，模型请求期限 60 秒；每个 Worker 实例同时处理 1 次自查或文档生成，按访问 IP 在实例内最多 8 次 / 10 分钟。此限制为内存中的尽力保护，不能代替跨实例限流、账号鉴权或供应商额度上限。CORS 仅允许指定网页来源，不等同于身份验证。
+生成结果受三层约束：
 
-## 隐私与结果边界
+1. 结构校验；引用ID必须属于本次检索，引用必须为该原文的连续、逐字片段。
+2. 未复核来源不生成确定法律评级或法律断言，结果保持“待核实”；无依据国家明确提示，未知企业事实和文档占位符保留。
+3. 独立第二次模型请求核对业务材料、完整来源与候选结果，复核未通过或服务失败即停止展示，不静默替换成示例。
 
-真实分析时，材料在请求内存中处理，未写入磁盘、数据库或应用日志；本应用不能代替模型服务商承诺零留存，应在正式上线前核查供应商数据政策。原始材料仅在当前会话中保留，生成报告后清空；导航切换保留正在填写的会话。输出结果只有手动点击保存后才进入本浏览器 localStorage，最多20条、总大小上限；支持回看、重新导出、单条删除及确认清空。保存结果可能复述业务信息，需在保存前检查。刷新不会保留未保存的输入与输出。示例模式不会把文字/图片发送到 AI，预设报告持续显示示例标识。
+这些限制用于降低失真，不能保证完全消除幻觉、检索遗漏或适用性错误，也不能代替专业法律复核。`analysis_scope` 区分 `demo / materials_only / reference_assisted / regulation_screening`。仅当来源全部为专业复核现行资料、覆盖所选国家且事项具备相应证据时，才可能进入法规筛查范围。
 
-`lib/knowledge.ts` 保存十国官方公开资料状态及三条真实处罚记录，与 `data/regulations.json` 的专业审校摘编分离。法规参考及对比中明确区分公开资料、通用业务提示和待核验内容；不把区域框架等同于当地强制法律。当前专业审校法规资料和机构授权均未提供，网页未展示虚构合作背书或律师名录。产品用于风险自查参考，不能作为合规证明或替代律师意见。公开运营前需验证真实模型输出准确性、法规更新、成本配额与跨实例限流。
+## 公共前端与私有后端发布
 
-风险报告、文档及多国对比 PDF 由浏览器本地生成；多国对比按国家分组导出，保存记录保留生成时的文本快照。PDF，带页码与免责声明；示例标识及材料初筛边界保留。为确保中文字体及离线输出一致，采用 A4 高分辨率图像页面，文字暂不可选择检索。
+**本GitHub仓库公开，`data/rag-corpus.server.json` 必须保持空stub。原始ZIP、全量索引和审计不提交GitHub。** `.githooks/pre-push` 会检查推往github.com的每个新增提交，任一提交含非空语料即拒绝，避免仅清空HEAD但仍泄露历史。首次克隆后执行：
 
-## 自动化辅助
+```sh
+git config core.hooksPath .githooks
+node scripts/check-public-release.mjs
+```
 
-支持的浏览器中注册 `get_assessment_state`（只读）与 `stage_assessment_profile`（仅填写画像、不调用 AI）两个 WebMCP 工具。没有支持该能力的浏览器时不影响正常流程。
-## GitHub Pages 公开网页
+发布顺序：
 
-`npm run build:pages` 将同一套网页构建到 `docs/`。GitHub Pages 使用 `main` 分支的 `/docs` 目录，资源采用相对路径，支持项目子路径。提交 `docs/` 与源码后即可更新公开演示。开发预览：`npm run dev:pages`。
+1. 在公共 `web` checkout 完成源码、空stub及 `docs/` 构建；检查后同步安全源码并推GitHub `main`。Pages从 `/docs` 发布。
+2. 另用 Sites 源码工作流打开同一项目的 **私有后端checkout**，仅在该checkout复制已审查的 `rag-corpus.server.json`；构建服务端、打包并部署到原Sites项目。此checkout不得添加GitHub远程或推公共仓库。
+3. 验证实际后端法规计数、检索、跨域调用及生成结果。密钥沿用服务端secret。
 
-公开地址：`https://vvvvme50.github.io/donghe-data-check/`。GitHub Pages 运行前端，`app/api` 在独立后端运行。前端默认调用公开后端 `https://donghe-data-check.vme0522.chatgpt.site`；真实分析时会将文字和图片发至后端，再由后端调用千问。示例体验不向模型发送材料，PDF 在浏览器本地生成。
+私有后端提交会包含运行语料，只同步到该Site的私有源库。后续不能把其Git历史直接拉进公共web分支；需要将应用代码变更单独迁移，保持公共stub为空及推送保护启用。GitHub前端构建中不得出现法规卡片ID或全文；后端仅按请求返回命中片段，不提供全库下载接口。
 
-迁移后端时，在构建环境配置公开的 `VITE_AI_API_BASE_URL`（仅服务地址，无密钥），重新构建。前端继续使用现有数据协议；后端需要允许 Pages 站点来源的 CORS 请求，并保留来源校验、上传大小限制与费用控制。AI 供应商密钥始终只放在后端。未启用服务时页面提供示例体验；材料初筛与示例报告均持续显示对应标识。
+## 服务端配置与接口
 
-公开访问权限不代表已验证中国大陆网络连通性；国内实际体验需通过不同地区和运营商实测。
+复制 `.env.example` 到本地 `.env`，部署使用托管secret，不提交密钥，也不设置公开前缀：
+
+- `AI_API_URL`：HTTPS `/chat/completions` 端点。
+- `AI_API_KEY`：供应商密钥，仅服务端。
+- `AI_MODEL`：支持图文和所选JSON模式的模型。
+- `AI_PROVIDER=qwen`：千问请求关闭思考模式，限制输出长度。
+- `AI_JSON_MODE=object` 或 `schema`：对象模式仍执行服务端结构与证据校验。
+- `AI_ALLOWED_ORIGINS`：允许的完整网页来源，逗号分隔。Pages为 `https://vvvvme50.github.io`。
+- `AI_ALLOW_MATERIAL_SCREENING`：明确设为 `true` 才允许无命中依据时整理材料事实和信息缺口。
+
+托管服务沿用千问 `qwen3-vl-plus` 及兼容接口，JSON Object模式。供应商能力见[阿里云官方结构化输出文档](https://help.aliyun.com/zh/model-studio/qwen-structured-output)。不要在前端或日志中输出认证信息。
+
+- `GET /api/status`：模型配置状态、专业复核国家、本地资料国家和索引版本；不返回密钥或供应商端点。
+- `GET /api/knowledge/status`：实际导入数、覆盖范围、版本及审核数。
+- `POST /api/knowledge/search`：JSON `countries / query / limit`，1–10国、2–1000字、1–8条主结果，关联版本资料可增加返回数。仅返回所选国家。
+- `POST /api/analyze`：multipart的 `profile / description / images`。描述0或10–2000字；最多3张JPG/PNG，每张≤5MiB，画像及至少一种材料必填。画像见 `lib/assessment.ts`。
+- `POST /api/documents`：JSON `country / type / data_types / storage`；单国，三类 `shop / fans / processing`，补充说明各≤300字。模板由用户单独选择，真实接口失败不会伪装成AI结果。
+
+检索/文档JSON≤16KB、读取≤15秒；自查请求≤16MiB、上传≤30秒。生成和独立复核各自上游请求≤60秒，前端总等待≤150秒。自查/文档共享每实例单并发及每IP 8次/10分钟；检索每IP 40次/分钟。内存限流不替代跨实例鉴权、配额或供应商费用上限。CORS来源限制不等于身份验证。
+
+错误格式 `{error:{code,message}}`：未配置/认证不可用503、输入400、读取超时408、过大413、类型415、未命中依据且未允许材料初筛422、忙碌/超频429、结果校验或上游失败502、模型等待504。
+
+旧 `data/regulations.json` 只接受显式 `review_status=reviewed_current`、`reviewed_at`及官方HTTPS来源的专业审校摘编，日期本身不构成审批，当前十国数组为空。
+
+## 隐私与使用边界
+
+真实生成将业务文字、图片和命中的法规片段发至服务端及模型供应商；应用在请求内存处理，不将原始材料写入应用数据库或日志。供应商留存政策需另核实。示例模式不向模型发送材料。手动保存的报告进入本浏览器localStorage，最多20条，可回看、删除和重新导出；结果可能复述业务信息，保存前应检查。
+
+`lib/knowledge.ts` 保存公开背景资料与真实处罚记录，和本地库、专业审核摘编分别标识。没有虚构机构背书、律师名录或合规证明。PDF在浏览器本地生成，含来源、引文、版本与免责声明；当前采用高分辨率图像页，文本暂不可选择检索。

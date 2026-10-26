@@ -1,0 +1,28 @@
+#!/bin/sh
+# The private Sites source and the public GitHub source have different data boundaries.
+case "$2" in
+  *github.com*) ;;
+  *) exit 0 ;;
+esac
+if command -v node >/dev/null 2>&1; then
+  donghe_node=$(command -v node)
+else
+  donghe_node="$HOME/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
+fi
+if [ ! -x "$donghe_node" ]; then
+  echo "Cannot verify public release data boundary: Node.js unavailable." >&2
+  exit 1
+fi
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$local_sha" in 0000000000000000000000000000000000000000) continue ;; esac
+  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    donghe_commits=$(git rev-list "$local_sha")
+  else
+    donghe_commits=$(git rev-list "$remote_sha..$local_sha")
+  fi
+  for donghe_commit in $donghe_commits; do
+    if git cat-file -e "$donghe_commit:data/rag-corpus.server.json" 2>/dev/null; then
+      "$donghe_node" scripts/check-public-release.mjs --commit "$donghe_commit" || exit 1
+    fi
+  done
+done

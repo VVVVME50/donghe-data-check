@@ -6,6 +6,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "test:rag": "node tests/rag.test.mjs",
     "build:pages": "node scripts/build-pages.mjs",
     "dev:pages": "vite --config vite.pages.config.ts",
     "install:ci": "node scripts/install-ci.mjs",

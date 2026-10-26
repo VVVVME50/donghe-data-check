@@ -1,0 +1,12 @@
+import { z } from "zod";
+import { COUNTRY_CODES } from "./countries";
+export const reviewStatusSchema=z.enum(["source_text","version_reference","reviewed_current"]);
+export const citationSchema=z.object({source_id:z.string().min(1).max(160),quote:z.string().min(12).max(1200)}).strict();
+export const ragReferenceSchema=z.object({id:z.string(),country:z.enum(COUNTRY_CODES),name:z.string(),article:z.string(),url:z.union([z.string().url(),z.literal("")]),review_status:reviewStatusSchema,version:z.string(),source_file:z.string(),pages:z.string(),source_hash:z.string(),content_hash:z.string(),excerpt:z.string(),cited_quote:z.string().optional(),imported_at:z.string(),parent_card:z.string(),context_note:z.string()});
+export type RagReference=z.infer<typeof ragReferenceSchema>;
+export const retrievalSchema=z.object({revision:z.string(),method:z.literal("bilingual_fulltext"),hit_count:z.number().int().nonnegative(),missing_countries:z.array(z.enum(COUNTRY_CODES)),reviewed_current:z.boolean(),warning:z.string()});
+export type Retrieval=z.infer<typeof retrievalSchema>;
+export const knowledgeStatusSchema=z.object({ready:z.boolean(),revision:z.string(),imported_at:z.string(),total_documents:z.number().int().nonnegative(),total_chunks:z.number().int().nonnegative(),reviewed_chunks:z.number().int().nonnegative(),countries:z.array(z.object({code:z.enum(COUNTRY_CODES),documents:z.number().int(),chunks:z.number().int()})),scope:z.string()});
+export const searchInputSchema=z.object({countries:z.array(z.enum(COUNTRY_CODES)).min(1).max(10).refine(a=>new Set(a).size===a.length),query:z.string().trim().min(2).max(1000),limit:z.number().int().min(1).max(8).default(6)}).strict();
+export const searchResultSchema=z.object({references:z.array(ragReferenceSchema).max(16),retrieval:retrievalSchema});
+export const REVIEW_LABELS={source_text:"来源原文 · 效力待复核",version_reference:"资料版本 · 效力待复核",reviewed_current:"现行版本已复核"};
