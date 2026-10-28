@@ -15,6 +15,6 @@ export const canCheckApi = buildEnv?.VITE_STATIC_DEMO !== "true" || !!apiBase;
 export const apiCredentials: RequestCredentials = apiBase ? "omit" : "same-origin";
 export const internalWorkspaceUrl = buildEnv?.VITE_INTERNAL_WORKSPACE_URL || "";
 export const isInternalWorkspace = buildEnv?.VITE_INTERNAL_MODE === "true";
-export function aiEndpoint(path: "/api/status" | "/api/analyze" | "/api/documents" | "/api/knowledge/status" | "/api/knowledge/search") {
+export function aiEndpoint(path: "/api/status" | "/api/analyze" | "/api/documents" | "/api/desk" | "/api/knowledge/status" | "/api/knowledge/search") {
   return `${apiBase}${path}`;
 }

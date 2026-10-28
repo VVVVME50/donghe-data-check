@@ -4,9 +4,14 @@ export { COUNTRY_CODES, COUNTRIES, type CountryCode } from "./countries";
 import { citationSchema, ragReferenceSchema, retrievalSchema } from "./rag-contract";
 export const BUSINESSES = [{value:"ecommerce",label:"跨境电商平台卖家",hint:"Shopee、Lazada 等平台"},{value:"independent",label:"跨境独立站",hint:"自建网站与线上商店"},{value:"livestream",label:"跨境直播",hint:"直播带货与粉丝运营"},{value:"social",label:"海外社媒 / MCN",hint:"社媒运营与达人合作"},{value:"trade",label:"传统外贸加工",hint:"B2B 订单与客户管理"},{value:"other",label:"其他业务",hint:"在材料中补充您的场景"}] as const;
 export const TRANSFERS = [{value:"all",label:"是，全部回传国内"},{value:"partial",label:"是，部分数据回传"},{value:"local",label:"否，全部在东盟本地处理"},{value:"unknown",label:"不清楚，需要进一步梳理"}] as const;
-export const DISCLAIMER="本工具仅提供数据合规风险自查参考，不构成法律意见、合规鉴证或律师意见。涉及重要决策，请咨询专业律师。";
+export const DISCLAIMER="本输出仅为AI自查参考，不构成执业法律意见，重大高风险业务建议咨询涉外合规律师。";
 export const profileSchema=z.object({country_list:z.array(z.enum(COUNTRY_CODES)).min(1).max(10).refine(a=>new Set(a).size===a.length,"国家不能重复"),business_type:z.enum(["ecommerce","independent","livestream","social","trade","other"]),data_transfer:z.enum(["all","partial","local","unknown"])}).strict();
 export type Profile=z.infer<typeof profileSchema>;
+export const ACTIVE_COUNTRY_CODES=["SG","MY","TH","ID"] as const;
+export const ACTIVE_COUNTRIES=ACTIVE_COUNTRY_CODES.map(code=>COUNTRIES.find(country=>country.code===code)!);
+export const ACTIVE_BUSINESSES=[{value:"ecommerce",label:"电商平台"},{value:"livestream",label:"直播 / MCN"},{value:"trade",label:"外贸加工"},{value:"other",label:"其他业务"}] as const;
+// Keep historical schemas readable; new submissions use the current four-market scope.
+export const activeProfileSchema=profileSchema.extend({country_list:z.array(z.enum(ACTIVE_COUNTRY_CODES)).min(1).max(4).refine(a=>new Set(a).size===a.length),business_type:z.enum(["ecommerce","livestream","trade","other"])});
 export const LEVELS={high:{label:"高风险",color:"#bc5548"},medium:{label:"中风险",color:"#b58a35"},low:{label:"低风险",color:"#287e70"},unknown:{label:"待核实",color:"#6d8094"}};
 export type Level=keyof typeof LEVELS;
 export type Source={id:string;country:string;name:string;article:string;url:string;reviewed_at:string;excerpt:string;review_status?:"source_text"|"version_reference"|"reviewed_current";version?:string;source_file?:string;pages?:string;source_hash?:string;content_hash?:string;cited_quote?:string;imported_at?:string;parent_card?:string;context_note?:string};
@@ -26,7 +31,7 @@ export function makeDemoReport(profile:Profile=EXAMPLE_PROFILE):Report{
  return normalizeReport({risk_list:[{level:"high",title:"梳理数据跨境传输的依据与接收方",description:"示例场景中，订单和联系信息由境外业务回传至中国境内。需要梳理传输目的、数据范围、接收方及相关安排。",evidence:"演示场景设定：订单数据同步至国内服务器。此项并非对您所提交材料的判断。",source_ids:[],citations:[],consequence:"资料不完整时，可能难以说明数据流转安排及各方责任。具体后果需要结合属地法规核查。",suggestion:"绘制数据流转图，逐项记录数据类型、传输目的、处理位置、接收方和保护措施，交由专业人员核查。"},{level:"high",title:"明确个人信息采集目的与告知内容",description:"示例场景通过表单收集手机号和收货信息，应核查收集目的、必要范围，以及用户能否理解数据的后续用途。",evidence:"演示场景设定：通过表单收集粉丝手机号与收货信息。",source_ids:[],citations:[],consequence:"用户告知与实际处理流程不一致，可能增加投诉和后续整改成本。",suggestion:"对照表单逐项检查必填字段，补充清晰的目的、保存期限及权利请求渠道，避免将营销用途与订单处理混在一起。"},{level:"medium",title:"厘清客服与物流服务商的数据访问范围",description:"示例中的第三方服务商可以访问客户信息，需要明确其访问权限、使用目的和数据删除安排。",evidence:"演示场景设定：客服及物流服务商可访问客户信息。",source_ids:[],citations:[],consequence:"权限和职责不清可能导致数据被超范围使用，或难以追踪数据流向。",suggestion:"建立第三方服务商清单，按业务必要性限制权限，并核查数据处理约定与服务终止后的处置流程。"},{level:"unknown",title:"补充保存期限、敏感数据与安全措施",description:"现有示例没有说明保存期限、是否处理儿童或其他特殊类别数据，以及访问控制方式。",evidence:"演示材料中未提供上述信息。",source_ids:[],citations:[],consequence:"缺少这些信息，无法形成完整的风险判断。",suggestion:"补充数据保存与删除规则、访问权限、特殊类别数据情况及事件处置流程后，再开展专业核查。"}],information_gaps:["数据类别、处理目的及具体保存期限","境外到境内的数据流转路径与接收方","第三方服务商的访问权限及合同安排"],disposal_guide:"优先梳理采集与跨境流转流程，再检查第三方共享和保存期限。涉及复杂业务或重大调整时，请将材料和自查清单交由专业律师复核。"},profile,[],"demo");
 }
 export function countryNames(profile:Profile){return profile.country_list.map(code=>COUNTRIES.find(c=>c.code===code)?.name??code).join("、");}
-export function businessName(profile:Profile){return BUSINESSES.find(b=>b.value===profile.business_type)?.label??profile.business_type;}
+export function businessName(profile:Profile){return ACTIVE_BUSINESSES.find(b=>b.value===profile.business_type)?.label??BUSINESSES.find(b=>b.value===profile.business_type)?.label??profile.business_type;}
 export function reportDate(date:string){return new Intl.DateTimeFormat("zh-CN",{timeZone:"Asia/Shanghai",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(date));}
 
 export const apiStatusSchema=z.object({configured:z.boolean(),provider:z.enum(["qwen","compatible"]).default("compatible"),materials_only:z.boolean().default(false),reviewed_countries:z.array(z.enum(COUNTRY_CODES)),reference_countries:z.array(z.enum(COUNTRY_CODES)).default([]),library_revision:z.string().default("not-imported"),library_chunks:z.number().int().nonnegative().default(0)});
