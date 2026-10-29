@@ -1,3 +1,4 @@
+import { imageInputSchema } from "./desk-contract";
 import { ragReferenceSchema, retrievalSchema } from "./rag-contract";
 import { z } from "zod";
 import { COUNTRY_CODES, DISCLAIMER, activeProfileSchema } from "./assessment";
@@ -18,4 +19,4 @@ export function makeTemplate(input:DocumentInput):Draft{const draft:Draft= {id:`
  return draft;}
 export function draftText(d:Draft){return `${d.title}\n${d.mode==="ai"?"AI 生成初稿 · 需专业复核":"模板底稿 · 需填写占位符"}\n\n${d.sections.map(s=>`${s.heading}\n${s.body}`).join("\n\n")}\n\n${d.references?.length?d.references.map(r=>`${r.name} · ${r.article}\n引用原文：${r.cited_quote||r.excerpt}\n来源版本：${r.version}；${r.source_file}${r.pages?" · "+r.pages:""}\n资料状态：${r.review_status==="reviewed_current"?"现行版本已复核":"来源文本，现行效力待复核"}${r.url?"\n来源入口："+r.url:""}`).join("\n\n"):referenceLines(d.input.country)}\n\n${d.disclaimer}`;}
 
-export const documentRequestSchema=documentInputSchema.extend({context:z.object({question:z.string().max(1000),profile:activeProfileSchema,report:z.string().max(20000),description:z.string().max(2000),documents:z.array(z.object({name:z.string().max(255),text:z.string().max(30000)}).strict()).max(5).refine(items=>items.reduce((n,d)=>n+d.text.length,0)<=60000)}).strict().optional()});
+export const documentRequestSchema=documentInputSchema.extend({context:z.object({question:z.string().max(1000),profile:activeProfileSchema,report:z.string().max(20000),description:z.string().max(2000),images:z.array(imageInputSchema).max(10).refine(images=>images.reduce((n,i)=>n+i.base64.length,0)<=14000000).optional(),documents:z.array(z.object({name:z.string().max(255),text:z.string().max(30000)}).strict()).max(5).refine(items=>items.reduce((n,d)=>n+d.text.length,0)<=60000)}).strict().optional()});

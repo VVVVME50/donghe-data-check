@@ -8,7 +8,7 @@ import { exportReportPDF } from "@/lib/report-pdf";
 import { aiEndpoint, canCheckApi, apiCredentials } from "@/lib/ai-client";
 import MaterialPicker from "./material-picker";
 import JourneySteps from "./journey-steps";
-import { materialContext, releaseMaterials, type Material, type MaterialContext } from "@/lib/materials";
+import { materialContext, appendMaterialForm, releaseMaterials, type Material, type MaterialContext } from "@/lib/materials";
 type Stage="profile"|"materials"|"loading"|"report";
 type MCPContext={registerTool:(tool:{name:string;title:string;description:string;inputSchema:object;annotations:object;execute:(input:unknown)=>unknown},options:{signal:AbortSignal})=>void|Promise<void>};
 type Props={initialExample?:boolean;initialReport?:Report;initialProfile?:Profile;onSave?:(report:Report)=>void;onCases?:(c:CountryCode)=>void;onDocuments?:(c:CountryCode)=>void;onReport?:(report:Report)=>void;onToolbox?:(report:Report)=>void;onMaterials?:(id:string,context:MaterialContext)=>void;active?:boolean;enableMcp?:boolean;onDirtyChange?:(dirty:boolean)=>void};
@@ -23,7 +23,7 @@ export default function AssessmentWorkflow({initialExample=false,initialReport,i
  const pdfRef=useRef<string|null>(null),request=useRef<AbortController|null>(null),busy=useRef(false),generation=useRef(0);
  const profile=activeProfileSchema.safeParse({country_list:countries,business_type:business,data_transfer:transfer});
  const length=Array.from(description.trim()).length;const validMaterials=(length===0||length>=10)&&length<=2000&&(length>=10||items.length>0);
- const live=!!api?.configured;
+ const live=canCheckApi&&!!api?.configured;
  useEffect(()=>{if(active)window.scrollTo({top:0,behavior:"instant"});},[stage,active]);
  useEffect(()=>{if(report)onReport?.(report);},[report,onReport]);
  useEffect(()=>{if(!canCheckApi)return;const controller=new AbortController();setApiError("");fetch(aiEndpoint("/api/status"),{cache:"no-store",credentials:apiCredentials,signal:AbortSignal.any([controller.signal,AbortSignal.timeout(20000)])}).then(async r=>{if(!r.ok)throw new Error();setApi(apiStatusSchema.parse(await r.json()));}).catch(()=>{if(!controller.signal.aborted)setApiError("AI 暂未连接，可先查看示例。");});return()=>controller.abort();},[refresh]);
@@ -33,11 +33,12 @@ export default function AssessmentWorkflow({initialExample=false,initialReport,i
  useEffect(()=>{if(!enableMcp)return;const context=(document as unknown as {modelContext?:MCPContext}).modelContext;if(!context?.registerTool)return;const life=new AbortController();const tools=[{name:"get_assessment_state",title:"读取当前自查状态",description:"读取步骤和画像，不读取材料。",inputSchema:{type:"object",properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute:()=>({...current.current,report:undefined,report_mode:current.current.report?.mode})},{name:"stage_assessment_profile",title:"填写业务画像",description:"只填写画像，不提交材料或调用 AI。",inputSchema:{type:"object",required:["country_list","business_type","data_transfer"],additionalProperties:false,properties:{country_list:{type:"array",items:{type:"string",enum:ACTIVE_COUNTRY_CODES},minItems:1,maxItems:4,uniqueItems:true},business_type:{type:"string",enum:ACTIVE_BUSINESSES.map(b=>b.value)},data_transfer:{type:"string",enum:TRANSFERS.map(t=>t.value)}}},annotations:{readOnlyHint:false},execute:async(input:unknown)=>{const p=activeProfileSchema.parse(input);setCountries(p.country_list);setBusiness(p.business_type);setTransfer(p.data_transfer);setStage("profile");return p;}}];for(const tool of tools){try{void Promise.resolve(context.registerTool(tool,{signal:life.signal})).catch(()=>{});}catch{}}return()=>life.abort();},[enableMcp]);
  function move(next:Stage){setError("");setStage(next);}
  async function generate(){
-  if(!profile.success||!validMaterials||busy.current||parsing||(live&&!consent))return;
+  if(!profile.success||!validMaterials||busy.current||parsing)return;
+  if(!live){setError(canCheckApi?(apiError||"真实检测服务未就绪，请重连后再试。不会使用示例代替你的检测结果。 "):"公开演示页不执行真实检测。请进入内部工作台，或从首页单独查看报告示例。");return;}if(!consent){setError("请先确认本次材料发送范围。");return;}
   const id=++generation.current;busy.current=true;const controller=new AbortController();request.current=controller;move("loading");
   try{let result:Report;const context=await materialContext(description.trim(),items);
-   if(live){const form=new FormData();form.set("profile",JSON.stringify(profile.data));form.set("description",context.description);form.set("documents",JSON.stringify(context.documents));items.filter(i=>i.kind==="image").forEach(i=>form.append("images",i.file));const res=await fetch(aiEndpoint("/api/analyze"),{method:"POST",body:form,credentials:apiCredentials,signal:AbortSignal.any([controller.signal,AbortSignal.timeout(150000)])});const body=await res.json();if(!res.ok){const failure=apiErrorSchema.safeParse(body);throw new Error(failure.success?failure.data.error.message:"分析暂未完成，请重试。");}result=reportSchema.parse(body);if(result.mode!=="live")throw new Error("未收到真实分析结果。");}
-   else {await new Promise(resolve=>setTimeout(resolve,900));result=makeDemoReport(profile.data);}
+   if(live){const form=new FormData();form.set("profile",JSON.stringify(profile.data));form.set("description",context.description);await appendMaterialForm(form,context);const res=await fetch(aiEndpoint("/api/analyze"),{method:"POST",body:form,credentials:apiCredentials,signal:AbortSignal.any([controller.signal,AbortSignal.timeout(150000)])});const body=await res.json();if(!res.ok){const failure=apiErrorSchema.safeParse(body);throw new Error(failure.success?failure.data.error.message:"分析暂未完成，请重试。");}result=reportSchema.parse(body);if(result.mode!=="live")throw new Error("未收到真实分析结果。");}
+   else {throw new Error("真实检测服务未就绪，本次没有生成报告。");}
    if(id!==generation.current)return;
    if(result.mode==="live")onMaterials?.(result.report_id,context);
    setReport(result);setStage("report");
@@ -67,9 +68,9 @@ export default function AssessmentWorkflow({initialExample=false,initialReport,i
  {stage==="materials"&&<>{errorView}<div className="material-context"><span>{profile.success?countryNames(profile.data):""} · {profile.success?businessName(profile.data):""}</span><button className="text-button" onClick={()=>move("profile")}>修改画像</button></div>
  <div className="material-section"><div className="material-label"><label htmlFor="business-description">业务描述</label><button className="text-button" onClick={()=>setDescription(EXAMPLE_DESCRIPTION)}>填入示例</button></div><textarea id="business-description" rows={5} value={description} onChange={e=>{if(Array.from(e.target.value).length<=2000)setDescription(e.target.value);setError("");}} placeholder="说明收集什么数据、用于什么业务、保存在哪里，以及向谁共享。"/><div className="text-counter"><span>{length>0&&length<10?"至少填写 10 字":"文字或文件至少提供一种"}</span><span>{length} / 2000</span></div></div>
  <div className="material-section"><div className="material-label"><h3>相关材料</h3><span>{items.length} / 5</span></div><MaterialPicker items={items} onChange={setItems} onError={setError} onBusy={setParsing}/></div>
- <details className="upload-details"><summary>上传须知与数据使用</summary><p>单个文件不超过 5 MB，总计 10 MB。PDF 需含可复制文字，扫描页请上传图片；Word 支持 DOCX。文档仅读取正文，内嵌图片请另传。请先遮盖个人信息。</p><p>真实分析会将材料及命中的法规片段发送至千问。本次原始材料仅留在当前会话，刷新后清除；输出可手动保存到本机。</p></details>
- {live?<label className="ai-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>同意将本次材料及命中片段发送至千问分析</span></label>:<div className="mode-notice" role="status">{apiError||"当前为示例模式，提交后展示预设报告。"}{apiError&&<button className="text-button" onClick={()=>setRefresh(x=>x+1)}>重连</button>}</div>}
- <div className="form-next"><button className="text-button" onClick={()=>move("profile")}><ChevronLeft size={18}/>上一步</button><button className="primary-button" disabled={!profile.success||!validMaterials||parsing||(live&&!consent)} onClick={generate}><ScanLine size={20}/>{live?"开始 AI 合规检测":"生成示例报告"}</button></div></>}
+ <details className="upload-details"><summary>上传须知与数据使用</summary><p>单个文件不超过 5 MB，总计 10 MB。PDF 支持文字及扫描件，图像页会保留为图片供模型读取，合计最多 10 页；Word 支持 DOCX 正文。请先遮盖个人信息。</p><p>真实分析会将材料及命中的法规片段发送至千问。本次原始材料仅留在当前会话，刷新后清除；输出可手动保存到本机。扫描页图片的内容在提交分析前尚未经过 AI 识别。</p></details>
+ {live?<label className="ai-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>同意将本次材料及命中片段发送至千问分析</span></label>:<div className="mode-notice" role="status">{apiError||"真实检测服务尚未就绪，不会生成或替换为示例报告。"}{apiError&&<button className="text-button" onClick={()=>setRefresh(x=>x+1)}>重连</button>}</div>}
+ <div className="form-next"><button className="text-button" onClick={()=>move("profile")}><ChevronLeft size={18}/>上一步</button><button className="primary-button" disabled={!profile.success||!validMaterials||parsing||(live&&!consent)} onClick={generate}><ScanLine size={20}/>{live?"开始 AI 合规检测":"真实检测暂未开放"}</button></div></>}
  {stage==="loading"&&<div className="simple-loading" role="status"><LoaderCircle size={48} className="spin"/><h2>{live?"正在核对材料与依据":"正在准备示例"}</h2><p>完成后自动进入报告预览。</p><button className="text-button" onClick={cancel}>取消并返回</button></div>}
  </section></main>;
 }

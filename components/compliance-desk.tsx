@@ -51,12 +51,12 @@ function DeskConversation({report,context,tab,configured,onSave,active}:{report:
   const question=text.trim();locked.current=true;setBusy(true);setError("");const abort=new AbortController();controller.current=abort;
   try{
    const extra=await materialContext("",items);const documents=[...(context?.documents||[]),...extra.documents];const images=[...(context?.images||[]),...extra.images];
-   if(needsAi&&(documents.length+images.length>5||documents.reduce((n,d)=>n+d.text.length,0)>60000||images.reduce((n,i)=>n+i.data.length,0)>14000000))throw new Error("沿用材料与补充文件合计超过限制，请移除部分补充材料后重试。");
+   if(needsAi&&(documents.length>5||images.length>10||documents.reduce((n,d)=>n+d.text.length,0)>60000||images.reduce((n,i)=>n+i.data.length,0)>14000000))throw new Error("沿用材料与补充文件合计超过限制，请移除部分补充材料后重试。");
    const userMessage=tab==="documents"?`生成${DOCUMENT_TYPES.find(d=>d.id===docType)?.label}${question?`：${question}`:""}`:question;
    setMessages(current=>[...current,message("user",userMessage)]);
    if(tab==="documents"){
     const input:DocumentInput={country,type:docType,data_types:dataTypes,storage};let draft:Draft;
-    if(useAi){const res=await fetch(aiEndpoint("/api/documents"),{method:"POST",headers:{"Content-Type":"application/json"},credentials:apiCredentials,signal:AbortSignal.any([abort.signal,AbortSignal.timeout(150000)]),body:JSON.stringify({...input,context:{question,profile:report.profile,report:reportText(report),description:context?.description||"",documents}})});const body=await res.json();if(!res.ok){const fail=apiErrorSchema.safeParse(body);throw new Error(fail.success?fail.data.error.message:"生成失败，请重试。");}draft=draftSchema.parse(body);}
+    if(useAi){const res=await fetch(aiEndpoint("/api/documents"),{method:"POST",headers:{"Content-Type":"application/json"},credentials:apiCredentials,signal:AbortSignal.any([abort.signal,AbortSignal.timeout(150000)]),body:JSON.stringify({...input,context:{question,profile:report.profile,report:reportText(report),description:context?.description||"",documents,images:images.map(i=>({mime:i.mime,base64:i.data}))}})});const body=await res.json();if(!res.ok){const fail=apiErrorSchema.safeParse(body);throw new Error(fail.success?fail.data.error.message:"生成失败，请重试。");}draft=draftSchema.parse(body);}
     else draft=makeTemplate(input);
     setMessages(current=>[...current,message("assistant",`${draft.title}\n\n${draft.mode==="template"?"模板底稿已准备，补齐占位符后请专业复核。":"初稿已生成，使用前请专业复核。"}`,{label:draft.mode==="template"?"模板生成 · 未调用 AI":"AI 文档初稿",draft})]);
    }else{
@@ -82,7 +82,7 @@ function DeskConversation({report,context,tab,configured,onSave,active}:{report:
  <textarea value={text} onChange={e=>setText(e.target.value)} maxLength={1000} rows={2} aria-label="对话内容" disabled={busy} placeholder={tab==="documents"?"可补充文档用途与特殊要求…":"输入具体问题，继续解析这份报告…"}/>
  <div className="composer-tools"><MaterialPicker items={items} compact onChange={setItems} onError={setError} onBusy={setParsing} disabled={busy}/><button type="submit" className="primary-button" disabled={busy||parsing||(tab==="analysis"&&(!text.trim()||!live||!consent))||(tab==="documents"&&useAi&&!consent)}>{busy?<LoaderCircle size={19} className="spin"/>:<Send size={19}/>}<span>{tab==="documents"?"生成初稿":"发送"}</span></button></div>
  {(tab==="analysis"||useAi)&&<label className="ai-consent"><input type="checkbox" checked={consent} disabled={busy||!live} onChange={e=>setConsent(e.target.checked)}/><span>{live?"同意将当前对话、报告、材料及命中片段发送至千问":"示例模式：可阅读报告与生成模板，暂不调用 AI"}</span></label>}
- {!useAi&&tab==="documents"&&<p className="composer-note">模板仅使用上方字段；AI 模式会结合报告和补充文字材料。图片请先在报告解析中核对。</p>}
+ {!useAi&&tab==="documents"&&<p className="composer-note">模板仅使用上方字段；AI 模式会结合报告、正文与扫描页图片。</p>}
  </form>}
  </div>;
 }
