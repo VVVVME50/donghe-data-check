@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, ArrowUpRight, Check, ChevronRight, FolderOpen, Globe2, ShieldCheck, X, ChevronDown } from "lucide-react";
-import AccountPanel from "@/components/account-panel";
 import AssessmentWorkflow from "@/components/assessment-workflow";
 import ComplianceDesk from "@/components/compliance-desk";
 import { AccessibleModal, CasesTool, CompareTool, HistoryTool, LawsTool } from "@/components/toolbox";
@@ -25,7 +24,7 @@ export default function Home(){
  useEffect(()=>{if(!message)return;const timer=setTimeout(()=>setMessage(""),3000);return()=>clearTimeout(timer);},[message]);
  const [contexts,setContexts]=useState<Record<string,MaterialContext>>({});
  const isReference=["laws","cases","compare"].includes(view),isAssessment=["assessment","example","report"].includes(view);
- function go(next:View){if(menuRef.current)menuRef.current.open=false;setView(next);setMessage("");if(next==="assessment")setAssessmentStarted(true);if(next==="toolbox")setDeskStarted(true);if(next==="compare")setCompareStarted(true);if(next==="laws")setLawsStarted(true);if(REFERENCE_TABS.some(([id])=>id===next))setLastReference(next);requestAnimationFrame(()=>window.scrollTo({top:0,behavior:"instant"}));}
+ function go(next:View){if(["account","assessment","toolbox"].includes(next)){window.location.assign("https://donghe-data-check.vme0522.chatgpt.site/#"+(next==="account"?"register":next));return;}if(menuRef.current)menuRef.current.open=false;setView(next);setMessage("");if(next==="assessment")setAssessmentStarted(true);if(next==="toolbox")setDeskStarted(true);if(next==="compare")setCompareStarted(true);if(next==="laws")setLawsStarted(true);if(REFERENCE_TABS.some(([id])=>id===next))setLastReference(next);requestAnimationFrame(()=>window.scrollTo({top:0,behavior:"instant"}));}
  function openDesk(tab:DeskTab="analysis",report?:Report){if(report)setLatestReport(report);setDeskTab(tab);setDeskRequest(n=>n+1);go("toolbox");}
  function start(next:Profile){if(assessmentDirty){setPendingProfile(next);return;}replaceAssessment(next);}
  function replaceAssessment(next:Profile){setProfile(next);setAssessmentKey(k=>k+1);setAssessmentStarted(true);go("assessment");}
@@ -38,11 +37,10 @@ export default function Home(){
    <nav className="journey-nav" aria-label="主导航"><button className={view==="home"?"active":""} aria-current={view==="home"?"page":undefined} onClick={()=>go("home")}>首页</button><button className={isAssessment?"active":""} aria-current={isAssessment?"page":undefined} onClick={()=>go("assessment")}>开始自查</button><button className={view==="toolbox"?"active":""} aria-current={view==="toolbox"?"page":undefined} onClick={()=>openDesk()}>工具箱</button></nav>
    <div className="header-utilities">{!isInternalWorkspace&&<button className="account-entry" onClick={()=>go("account")}>注册 / 登录</button>}<details className="header-more" ref={menuRef}><summary>更多<ChevronDown size={16}/></summary><button aria-label="资料中心" className={isReference?"utility-active":""} onClick={()=>go(lastReference)}><Globe2 size={19}/><span>资料中心</span></button><button aria-label="我的报告" className={view==="history"?"utility-active":""} onClick={()=>go("history")}><FolderOpen size={19}/><span>我的报告</span></button></details><span className="workspace-badge"><i/>{isInternalWorkspace?"内部工作台":"出海合规"}</span></div>
   </div></header>
-  {!canCheckApi&&internalWorkspaceUrl&&<div className="public-experience"><div className="wrap"><p><b>公开体验</b><span>法规检索与真实 AI 分析限内部授权账号使用。</span></p><a href={internalWorkspaceUrl}>进入内部工作台<ArrowUpRight size={18}/></a></div></div>}
+  {!canCheckApi&&internalWorkspaceUrl&&<div className="public-experience"><div className="wrap"><p><b>正式产品</b><span>注册后提交材料，开始真实自查。</span></p><a href="https://donghe-data-check.vme0522.chatgpt.site/">进入产品<ArrowUpRight size={18}/></a></div></div>}
   {isReference&&<div className="context-bar"><nav className="wrap context-tabs" aria-label="资料中心"><span>资料中心</span>{REFERENCE_TABS.map(([id,label])=><button key={id} className={view===id?"active":""} aria-current={view===id?"page":undefined} onClick={()=>go(id)}>{label}</button>)}</nav></div>}
-  {view==="account"&&<AccountPanel onDone={()=>go("assessment")}/>}
   {view==="home"&&<main className="clean-home">
-   <section className="clean-hero wrap"><div className="clean-copy"><span className="clean-label">新加坡 · 马来西亚 · 泰国 · 印度尼西亚</span><h1>出海合规，<br/>一步步更清晰。</h1><p>提交材料，读懂风险，继续处理。</p><div className="clean-actions"><button className="primary-button" onClick={()=>go("assessment")}>开始自查<ArrowRight size={21}/></button><button className="text-button" onClick={()=>go("example")}>查看报告示例<ArrowUpRight size={19}/></button></div><span className="clean-scope"><ShieldCheck size={18}/>{canCheckApi?"内部使用 · 结果供专业复核":"公开演示 · 真实检测需授权"}</span></div>
+   <section className="clean-hero wrap"><div className="clean-copy"><span className="clean-label">新加坡 · 马来西亚 · 泰国 · 印度尼西亚</span><h1>出海合规，<br/>一步步更清晰。</h1><p>提交材料，读懂风险，继续处理。</p><div className="clean-actions"><button className="primary-button" onClick={()=>go("assessment")}>开始自查<ArrowRight size={21}/></button><button className="text-button" onClick={()=>go("example")}>查看报告示例<ArrowUpRight size={19}/></button></div><span className="clean-scope"><ShieldCheck size={18}/>{canCheckApi?"内部使用 · 结果供专业复核":"账号注册 · 无需短信"}</span></div>
    <div className="clean-flow" aria-label="使用流程"><div className="clean-flow-heading"><h2>四步完成自查</h2></div><ol>{JOURNEY.map((item,i)=><li key={item.n}><span className={i===0?"flow-number current":"flow-number"}>{item.n}</span><div><h3>{item.title}</h3><p>{item.text}</p></div>{i===3&&<ChevronRight size={20}/>}</li>)}</ol></div></section>
    <section className="clean-continue wrap"><div><h2>已有报告？</h2><p>继续读报告、准备文档。</p></div><button className="secondary-button" onClick={()=>openDesk()}>进入工具箱<ArrowRight size={19}/></button></section>
   </main>}
